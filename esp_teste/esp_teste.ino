@@ -1,13 +1,15 @@
-#include <Arduino.h>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
 #include "SPIFFS.h"
 
-// Create AsyncWebServer object on port 80
+//=========================================================================
+// DEFINIÇÃO DAS VARIÁVEIS
+
+// Cria um objeto AsyncWebServer na porta 80
 AsyncWebServer server(80);
 
-// Search for parameter in HTTP POST request
+// Parâmetros para HTTP POST request
 const char* PARAM_INPUT_1 = "ssid";
 const char* PARAM_INPUT_2 = "pass";
 const char* PARAM_INPUT_3 = "ip";
@@ -15,7 +17,7 @@ const char* PARAM_INPUT_4 = "gateway";
 const char* PARAM_INPUT_5 = "broker";
 const char* PARAM_INPUT_6 = "id";
 
-//Variables to save values from HTML form
+//Variáveis para salvar os valores do formulário HTML
 String ssid;
 String pass;
 String ip;
@@ -23,7 +25,7 @@ String gateway;
 String broker;
 String id;
 
-// File paths to save input values permanently
+// Diretório para salvar os valores de entrada
 const char* ssidPath = "/ssid.txt";
 const char* passPath = "/pass.txt";
 const char* ipPath = "/ip.txt";
@@ -34,22 +36,40 @@ const char* idPath = "/id.txt";
 IPAddress localIP;
 //IPAddress localIP(192, 168, 1, 200); // hardcoded
 
-// Set your Gateway IP address
+// Configuração do endereço Gateway IP
 IPAddress localGateway;
 //IPAddress localGateway(192, 168, 1, 1); //hardcoded
 IPAddress subnet(255, 255, 0, 0);
 
-// Timer variables
+// Variáveis de tempo
 unsigned long previousMillis = 0;
-const long interval = 10000;  // interval to wait for Wi-Fi connection (milliseconds)
+const long interval = 10000;  // Intervalo para esperar pela conexão WiFi
+unsigned long currentMillis = 0;
 
-// Set LED GPIO
-const int ledPin = 2;
-// Stores LED state
+//=========================================================================
+// Função setup
+void setup() {
 
-String ledState;
+  Serial.begin(115200);
 
-// Initialize SPIFFS
+  initSPIFFS();
+  recoveryData();
+
+  if (initWiFi()) {
+    Serial.println("ESP conectado a internet...");
+  }
+  else {
+    modeAP();
+  }
+}
+
+void loop() {  }
+//=========================================================================
+
+//=========================================================================
+// FUNÇÕES RELACIONADAS A SPIFFS
+
+// Inicializa SPIFFS
 void initSPIFFS() {
   if (!SPIFFS.begin(true)) {
     Serial.println("An error has occurred while mounting SPIFFS");
@@ -57,43 +77,47 @@ void initSPIFFS() {
   Serial.println("SPIFFS mounted successfully");
 }
 
-// Read File from SPIFFS
-String readFile(fs::FS &fs, const char * path){
+// Lê arquivos do SPIFFS
+String readFile(fs::FS &fs, const char * path) {
   Serial.printf("Reading file: %s\r\n", path);
 
   File file = fs.open(path);
-  if(!file || file.isDirectory()){
+  if (!file || file.isDirectory()) {
     Serial.println("- failed to open file for reading");
     return String();
   }
-  
+
   String fileContent;
-  while(file.available()){
+  while (file.available()) {
     fileContent = file.readStringUntil('\n');
-    break;     
+    break;
   }
   return fileContent;
 }
 
-// Write file to SPIFFS
-void writeFile(fs::FS &fs, const char * path, const char * message){
+// Grava arquivos no SPIFFS
+void writeFile(fs::FS &fs, const char * path, const char * message) {
   Serial.printf("Writing file: %s\r\n", path);
 
   File file = fs.open(path, FILE_WRITE);
-  if(!file){
+  if (!file) {
     Serial.println("- failed to open file for writing");
     return;
   }
-  if(file.print(message)){
+  if (file.print(message)) {
     Serial.println("- file written");
   } else {
     Serial.println("- frite failed");
   }
 }
+//=========================================================================
 
-// Initialize WiFi
+//=========================================================================
+// FUNÇÕES RELACIONADAS AO WIFI
+
+// Inicializa WiFi
 bool initWiFi() {
-  if(ssid=="" || ip==""){
+  if (ssid == "" || ip == "") {
     Serial.println("Undefined SSID or IP address.");
     return false;
   }
@@ -103,17 +127,17 @@ bool initWiFi() {
   localGateway.fromString(gateway.c_str());
 
 
-  if (!WiFi.config(localIP, localGateway, subnet)){
+  if (!WiFi.config(localIP, localGateway, subnet)) {
     Serial.println("STA Failed to configure");
     return false;
   }
   WiFi.begin(ssid.c_str(), pass.c_str());
-  Serial.println("Connecting to WiFi...");
+  Serial.println("Conectando ao WiFi...");
 
-  unsigned long currentMillis = millis();
+  currentMillis = millis();
   previousMillis = currentMillis;
 
-  while(WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED) {
     currentMillis = millis();
     if (currentMillis - previousMillis >= interval) {
       Serial.println("Failed to connect.");
@@ -125,146 +149,100 @@ bool initWiFi() {
   return true;
 }
 
-// Replaces placeholder with LED state value
-String processor(const String& var) {
-  if(var == "STATE") {
-    if(digitalRead(ledPin)) {
-      ledState = "ON";
-    }
-    else {
-      ledState = "OFF";
-    }
-    return ledState;
-  }
-  return String();
-}
-
-void setup() {
-  // Serial port for debugging purposes
-  Serial.begin(115200);
-
-  initSPIFFS();
-
-  // Set GPIO 2 as an OUTPUT
-  pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, LOW);
-  
-  // Load values saved in SPIFFS
+void recoveryData() {
+  // Recuperar os valores salvos em SPIFFS
   ssid = readFile(SPIFFS, ssidPath);
   pass = readFile(SPIFFS, passPath);
   ip = readFile(SPIFFS, ipPath);
   gateway = readFile (SPIFFS, gatewayPath);
   broker = readFile (SPIFFS, brokerPath);
   id = readFile (SPIFFS, idPath);
-  
+
   Serial.println(ssid);
   Serial.println(pass);
   Serial.println(broker);
   Serial.println(id);
   Serial.println(ip);
   Serial.println(gateway);
+}
 
-  if(initWiFi()) {
-    // Route for root / web page
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-      request->send(SPIFFS, "/index.html", "text/html", false, processor);
-    });
-    server.serveStatic("/", SPIFFS, "/");
-    
-    // Route to set GPIO state to HIGH
-    server.on("/on", HTTP_GET, [](AsyncWebServerRequest *request) {
-      digitalWrite(ledPin, HIGH);
-      request->send(SPIFFS, "/index.html", "text/html", false, processor);
-    });
+void modeAP() {
+  // Connect to Wi-Fi network with SSID and password
+  Serial.println("Configuracao AP (Access Point)");
+  // NULL sets an open Access Point
+  WiFi.softAP("ESP-WIFI", NULL);
 
-    // Route to set GPIO state to LOW
-    server.on("/off", HTTP_GET, [](AsyncWebServerRequest *request) {
-      digitalWrite(ledPin, LOW);
-      request->send(SPIFFS, "/index.html", "text/html", false, processor);
-    });
-    server.begin();
-  }
-  else {
-    // Connect to Wi-Fi network with SSID and password
-    Serial.println("Setting AP (Access Point)");
-    // NULL sets an open Access Point
-    WiFi.softAP("ESP-WIFI", NULL);
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
 
-    IPAddress IP = WiFi.softAPIP();
-    Serial.print("AP IP address: ");
-    Serial.println(IP); 
+  // Web Server Root URL
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(SPIFFS, "/wifimanager.html", "text/html");
+  });
 
-    // Web Server Root URL
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-      request->send(SPIFFS, "/wifimanager.html", "text/html");
-    });
-    
-    server.serveStatic("/", SPIFFS, "/");
-    
-    server.on("/", HTTP_POST, [](AsyncWebServerRequest *request) {
-      int params = request->params();
-      for(int i=0;i<params;i++){
-        AsyncWebParameter* p = request->getParam(i);
-        if(p->isPost()){
-          // HTTP POST ssid value
-          if (p->name() == PARAM_INPUT_1) {
-            ssid = p->value().c_str();
-            Serial.print("SSID set to: ");
-            Serial.println(ssid);
-            // Write file to save value
-            writeFile(SPIFFS, ssidPath, ssid.c_str());
-          }
-          // HTTP POST pass value
-          if (p->name() == PARAM_INPUT_2) {
-            pass = p->value().c_str();
-            Serial.print("Password set to: ");
-            Serial.println(pass);
-            // Write file to save value
-            writeFile(SPIFFS, passPath, pass.c_str());
-          }
-          // HTTP POST ip value
-          if (p->name() == PARAM_INPUT_3) {
-            ip = p->value().c_str();
-            Serial.print("IP Address set to: ");
-            Serial.println(ip);
-            // Write file to save value
-            writeFile(SPIFFS, ipPath, ip.c_str());
-          }
-          // HTTP POST gateway value
-          if (p->name() == PARAM_INPUT_4) {
-            gateway = p->value().c_str();
-            Serial.print("Gateway set to: ");
-            Serial.println(gateway);
-            // Write file to save value
-            writeFile(SPIFFS, gatewayPath, gateway.c_str());
-          }
-           // HTTP POST broker Address value
-          if (p->name() == PARAM_INPUT_5) {
-            broker = p->value().c_str();
-            Serial.print("Broker Address set to: ");
-            Serial.println(broker);
-            // Write file to save value
-            writeFile(SPIFFS, brokerPath, broker.c_str());
-          }
-           // HTTP POST ID value
-          if (p->name() == PARAM_INPUT_6) {
-            id = p->value().c_str();
-            Serial.print("ID set to: ");
-            Serial.println(id);
-            // Write file to save value
-            writeFile(SPIFFS, idPath, id.c_str());
-          }
-          //Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
+  server.serveStatic("/", SPIFFS, "/");
+
+  server.on("/", HTTP_POST, [](AsyncWebServerRequest * request) {
+    int params = request->params();
+    for (int i = 0; i < params; i++) {
+      AsyncWebParameter* p = request->getParam(i);
+      if (p->isPost()) {
+        // HTTP POST ssid value
+        if (p->name() == PARAM_INPUT_1) {
+          ssid = p->value().c_str();
+          Serial.print("SSID set to: ");
+          Serial.println(ssid);
+          // Write file to save value
+          writeFile(SPIFFS, ssidPath, ssid.c_str());
         }
+        // HTTP POST pass value
+        if (p->name() == PARAM_INPUT_2) {
+          pass = p->value().c_str();
+          Serial.print("Password set to: ");
+          Serial.println(pass);
+          // Write file to save value
+          writeFile(SPIFFS, passPath, pass.c_str());
+        }
+        // HTTP POST ip value
+        if (p->name() == PARAM_INPUT_3) {
+          ip = p->value().c_str();
+          Serial.print("IP Address set to: ");
+          Serial.println(ip);
+          // Write file to save value
+          writeFile(SPIFFS, ipPath, ip.c_str());
+        }
+        // HTTP POST gateway value
+        if (p->name() == PARAM_INPUT_4) {
+          gateway = p->value().c_str();
+          Serial.print("Gateway set to: ");
+          Serial.println(gateway);
+          // Write file to save value
+          writeFile(SPIFFS, gatewayPath, gateway.c_str());
+        }
+        // HTTP POST broker Address value
+        if (p->name() == PARAM_INPUT_5) {
+          broker = p->value().c_str();
+          Serial.print("Broker Address set to: ");
+          Serial.println(broker);
+          // Write file to save value
+          writeFile(SPIFFS, brokerPath, broker.c_str());
+        }
+        // HTTP POST ID value
+        if (p->name() == PARAM_INPUT_6) {
+          id = p->value().c_str();
+          Serial.print("ID set to: ");
+          Serial.println(id);
+          // Write file to save value
+          writeFile(SPIFFS, idPath, id.c_str());
+        }
+        //Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
       }
-      request->send(200, "text/plain", "Done. ESP will restart, connect to your router and go to IP address: " + ip);
-      delay(3000);
-      ESP.restart();
-    });
-    server.begin();
-  }
+    }
+    request->send(200, "text/plain", "Done. ESP will restart, connect to your router and go to IP address: " + ip);
+    delay(3000);
+    ESP.restart();
+  });
+  server.begin();
 }
-
-void loop() {
-
-}
+//=========================================================================

@@ -15,7 +15,7 @@ html {
   
   .topnav { 
     overflow: hidden; 
-    background-color: #0A1128;
+    background-color: #f09610;
   }
   
   body {  
@@ -48,7 +48,7 @@ html {
   input[type=submit] {
     border: none;
     color: #FEFCFB;
-    background-color: #034078;
+    background-color: #e19e0e;
     padding: 15px 15px;
     text-align: center;
     text-decoration: none;
@@ -61,7 +61,7 @@ html {
     }
   
   input[type=submit]:hover {
-    background-color: #1282A2;
+    background-color: #e1dd1c;
   }
   
   input[type=text], input[type=number], select {
@@ -79,11 +79,11 @@ html {
   }
   .value{
     font-size: 1.2rem;
-    color: #1282A2;  
+    color: #e79d13;  
   }
   .state {
     font-size: 1.2rem;
-    color: #1282A2;
+    color: #de9f17;
   }
   button {
     border: none;
@@ -95,15 +95,3 @@ html {
     border-radius: 4px;
     transition-duration: 0.4s;
   }
-  .button-on {
-    background-color: #034078;
-  }
-  .button-on:hover {
-    background-color: #1282A2;
-  }
-  .button-off {
-    background-color: #858585;
-  }
-  .button-off:hover {
-    background-color: #252524;
-  } 
