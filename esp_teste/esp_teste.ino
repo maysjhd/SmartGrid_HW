@@ -2,9 +2,13 @@
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
 #include "SPIFFS.h"
+#include "serial_comm.h"
 
 //=========================================================================
 // DEFINIÇÃO DAS VARIÁVEIS
+
+// Objeto Serial_comm
+Serial_comm serial;
 
 // Cria um objeto AsyncWebServer na porta 80
 AsyncWebServer server(80);
@@ -63,7 +67,7 @@ void setup() {
   }
 }
 
-void loop() {  }
+void loop() { recoveryData(); delay(1000); }
 //=========================================================================
 
 //=========================================================================
@@ -79,7 +83,7 @@ void initSPIFFS() {
 
 // Lê arquivos do SPIFFS
 String readFile(fs::FS &fs, const char * path) {
-  Serial.printf("Reading file: %s\r\n", path);
+//  Serial.printf("Reading file: %s\r\n", path)
 
   File file = fs.open(path);
   if (!file || file.isDirectory()) {
@@ -97,7 +101,7 @@ String readFile(fs::FS &fs, const char * path) {
 
 // Grava arquivos no SPIFFS
 void writeFile(fs::FS &fs, const char * path, const char * message) {
-  Serial.printf("Writing file: %s\r\n", path);
+//  Serial.printf("Writing file: %s\r\n", path);
 
   File file = fs.open(path, FILE_WRITE);
   if (!file) {
@@ -164,6 +168,7 @@ void recoveryData() {
   Serial.println(id);
   Serial.println(ip);
   Serial.println(gateway);
+
 }
 
 void modeAP() {
