@@ -13,6 +13,10 @@ const char* broker_mqtt = "test.mosquitto.org";
 WiFiClient espClient;
 PubSubClient client(espClient);
 
+//IP padrão para configuração da rede Wifi e outras coisas
+// 192.168.4.1
+
+
 //=========================================================================
 // DEFINIÇÕES
  // Funções relacionadas ao WIFI
