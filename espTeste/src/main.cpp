@@ -1,11 +1,27 @@
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
-#include "SPIFFS.h"
+#include <PubSubClient.h>
 #include "serial_comm.h"
+#include "files.h"
+
+//MQTT config
+const char* topic_subscribe = "esp32/output";
+const char* id_mqtt = "disp01";   
+const char* broker_mqtt = "test.mosquitto.org";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
 
 //=========================================================================
-// DEFINIÇÃO DAS VARIÁVEIS
+// DEFINIÇÕES
+ // Funções relacionadas ao WIFI
+bool initWiFi();
+void modeAP();
+void savedData();
+void conectaMQTT();
+void mantemConexoes();
+void callback(char* topic, byte* payload, unsigned int length);
 
 // Objeto Serial_comm
 Serial_comm serial;
@@ -20,22 +36,6 @@ const char* PARAM_INPUT_3 = "ip";
 const char* PARAM_INPUT_4 = "gateway";
 const char* PARAM_INPUT_5 = "broker";
 const char* PARAM_INPUT_6 = "id";
-
-//Variáveis para salvar os valores do formulário HTML
-String ssid;
-String pass;
-String ip;
-String gateway;
-String broker;
-String id;
-
-// Diretório para salvar os valores de entrada
-const char* ssidPath = "/ssid.txt";
-const char* passPath = "/pass.txt";
-const char* ipPath = "/ip.txt";
-const char* gatewayPath = "/gateway.txt";
-const char* brokerPath = "/broker.txt";
-const char* idPath = "/id.txt";
 
 IPAddress localIP;
 //IPAddress localIP(192, 168, 1, 200); // hardcoded
@@ -65,15 +65,20 @@ void setup() {
   else {
     modeAP();
   }
+  // client.setServer(broker_mqtt, 1883);
+  // client.setCallback(callback);
 }
 
-//{"from":"teste", "state":"monaojs"}
+//{"broker":"teste", "id":"111#$#$%"}
 
 void loop() { 
+// mantemConexoes();
+// client.loop();
 //  savedData(); 
 //  serial.sendJson(broker, id);
+//  listAllFiles();
 }
-//=========================================================================
+
 
 //=========================================================================
 // FUNÇÕES RELACIONADAS A SPIFFS
@@ -121,7 +126,6 @@ void writeFile(fs::FS &fs, const char * path, const char * message) {
 }
 
 void listAllFiles(){
- 
   File root = SPIFFS.open("/"); 
   File file = root.openNextFile();
   while(file){
@@ -150,7 +154,7 @@ void savedData() {
   Serial.println(id);
   Serial.println(ip);
   Serial.println(gateway);
-}
+};
 //=========================================================================
 
 //=========================================================================
@@ -270,3 +274,46 @@ void modeAP() {
   server.begin();
 }
 //=========================================================================
+
+// Funções MQTT
+void conectaMQTT() { 
+    while (!client.connected()) {
+        Serial.print("Conectando ao Broker MQTT: ");
+        Serial.println(broker_mqtt);
+        if (client.connect(id_mqtt)) {
+            Serial.println("Conectado ao Broker com sucesso!");
+            client.subscribe(topic_subscribe);
+        } 
+        else {
+            Serial.println("Noo foi possivel se conectar ao broker.");
+            Serial.println("Nova tentatica de conexao em 10s");
+            delay(10000);
+        }
+    }
+}
+
+// Funções MQTT
+void callback(char* topic, byte* payload, unsigned int length) 
+{
+
+  String msg;
+  Serial.print("Message arrived in topic: ");
+  Serial.println(topic);
+  Serial.print("Message:");
+  for (int i = 0; i < length; i++) {
+   char c = (char)payload[i];
+    msg += c;
+  }
+
+  Serial.println();
+  Serial.println(msg);
+  Serial.println("-----------------------");
+}
+
+
+void mantemConexoes() {
+    if (!client.connected()) {
+       conectaMQTT(); 
+    }
+  
+}
