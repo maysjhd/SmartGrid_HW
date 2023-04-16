@@ -7,7 +7,8 @@
 
 //MQTT config
 const char* topic_subscribe = "esp32/output";
-const char* id_mqtt = "disp01";   
+const char* id_mqtt = "disp01";  
+StaticJsonDocument<256> doc_tx; 
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -26,6 +27,7 @@ void savedData();
 void conectaMQTT();
 void mantemConexoes();
 void callback(char* topic, byte* payload, unsigned int length);
+void enviaValores();
 
 // Objeto Serial_comm
 Serial_comm serial;
@@ -36,10 +38,9 @@ AsyncWebServer server(80);
 // Parâmetros para HTTP POST request
 const char* PARAM_INPUT_1 = "ssid";
 const char* PARAM_INPUT_2 = "pass";
-const char* PARAM_INPUT_3 = "ip";
-const char* PARAM_INPUT_4 = "gateway";
-const char* PARAM_INPUT_5 = "broker";
-const char* PARAM_INPUT_6 = "id";
+const char* PARAM_INPUT_3 = "setor";
+const char* PARAM_INPUT_4 = "broker";
+const char* PARAM_INPUT_5 = "id";
 
 // controle
 boolean modeWifi = false;
@@ -48,6 +49,7 @@ boolean modeWifi = false;
 unsigned long previousMillis = 0;
 const long interval = 10000;  // Intervalo para esperar pela conexão WiFi
 unsigned long currentMillis = 0;
+unsigned long tempoPassado = 0;
 
 //=========================================================================
 // Função setup
@@ -73,6 +75,11 @@ void setup() {
 
 void loop() { 
   if(modeWifi){
+    unsigned long tempoAtual = millis();
+    if (tempoAtual - tempoPassado >= interval){ // envia uma mensagem a cada 10 s para o Broker
+      tempoPassado = tempoAtual;
+      enviaValores();
+    }
     mantemConexoes();
     client.loop();
   }
@@ -141,17 +148,16 @@ void savedData() {
   // Recuperar os valores salvos em SPIFFS
   ssid = readFile(SPIFFS, ssidPath);
   pass = readFile(SPIFFS, passPath);
-  ip = readFile(SPIFFS, ipPath);
-  gateway = readFile (SPIFFS, gatewayPath);
+  setor = readFile(SPIFFS, setorPath);
   broker = readFile (SPIFFS, brokerPath);
   id = readFile (SPIFFS, idPath);
 
   Serial.println(ssid);
   Serial.println(pass);
+  Serial.println(setor);
   Serial.println(broker);
   Serial.println(id);
-  Serial.println(ip);
-  Serial.println(gateway);
+
 };
 
 //=========================================================================
@@ -159,7 +165,7 @@ void savedData() {
 
 // Inicializa WiFi
 bool initWiFi() {
-  if (ssid == "" || ip == "") {
+  if (ssid == "" || pass == "") {
     Serial.println("Undefined SSID or IP address.");
     return false;
   }
@@ -224,22 +230,15 @@ void modeAP() {
         }
         // HTTP POST ip value
         if (p->name() == PARAM_INPUT_3) {
-          ip = p->value().c_str();
-          Serial.print("IP Address set to: ");
-          Serial.println(ip);
+          setor = p->value().c_str();
+          Serial.print("Setor set to: ");
+          Serial.println(setor);
           // Write file to save value
-          writeFile(SPIFFS, ipPath, ip.c_str());
+          writeFile(SPIFFS, setorPath, setor.c_str());
         }
-        // HTTP POST gateway value
-        if (p->name() == PARAM_INPUT_4) {
-          gateway = p->value().c_str();
-          Serial.print("Gateway set to: ");
-          Serial.println(gateway);
-          // Write file to save value
-          writeFile(SPIFFS, gatewayPath, gateway.c_str());
-        }
+        
         // HTTP POST broker Address value
-        if (p->name() == PARAM_INPUT_5) {
+        if (p->name() == PARAM_INPUT_4) {
           broker = p->value().c_str();
           Serial.print("Broker Address set to: ");
           Serial.println(broker);
@@ -247,7 +246,7 @@ void modeAP() {
           writeFile(SPIFFS, brokerPath, broker.c_str());
         }
         // HTTP POST ID value
-        if (p->name() == PARAM_INPUT_6) {
+        if (p->name() == PARAM_INPUT_5) {
           id = p->value().c_str();
           Serial.print("ID set to: ");
           Serial.println(id);
@@ -257,7 +256,7 @@ void modeAP() {
         //Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
       }
     }
-    request->send(200, "text/plain", "Done. ESP will restart, connect to your router and go to IP address: " + ip);
+    request->send(200, "text/plain", "Done. ESP será reiniciado em 3 segundos...");
     modeWifi = true;
     delay(3000);
     ESP.restart();
@@ -309,6 +308,17 @@ void callback(char* topic, byte* payload, unsigned int length)
   Serial.println(msg);
   Serial.println(valorJson);
   Serial.println("-----------------------");
+}
+
+void enviaValores() {
+  String jsonString = "";
+  JsonObject obj = doc_tx.to<JsonObject>();
+  doc_tx["broker"] = broker;
+  doc_tx["setor"] = setor;
+  serializeJson(doc_tx, jsonString); 
+  client.publish(topic_subscribe, jsonString.c_str());
+  Serial.println(jsonString); // Json montado
+  Serial.println("Payload enviado.");
 }
 
 void mantemConexoes() {
