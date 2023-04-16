@@ -8,7 +8,6 @@
 //MQTT config
 const char* topic_subscribe = "esp32/output";
 const char* id_mqtt = "disp01";   
-const char* broker_mqtt = "test.mosquitto.org";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -16,13 +15,14 @@ PubSubClient client(espClient);
 //IP padrão para configuração da rede Wifi e outras coisas
 // 192.168.4.1
 
-
 //=========================================================================
 // DEFINIÇÕES
  // Funções relacionadas ao WIFI
 bool initWiFi();
 void modeAP();
 void savedData();
+
+ // Funções relacionadas a MQTT
 void conectaMQTT();
 void mantemConexoes();
 void callback(char* topic, byte* payload, unsigned int length);
@@ -41,13 +41,8 @@ const char* PARAM_INPUT_4 = "gateway";
 const char* PARAM_INPUT_5 = "broker";
 const char* PARAM_INPUT_6 = "id";
 
-IPAddress localIP;
-//IPAddress localIP(192, 168, 1, 200); // hardcoded
-
-// Configuração do endereço Gateway IP
-IPAddress localGateway;
-//IPAddress localGateway(192, 168, 1, 1); //hardcoded
-IPAddress subnet(255, 255, 0, 0);
+// controle
+boolean modeWifi = false;
 
 // Variáveis de tempo
 unsigned long previousMillis = 0;
@@ -65,28 +60,27 @@ void setup() {
 
   if (initWiFi()) {
     Serial.println("ESP conectado a internet...");
+    client.setServer(broker.c_str(), 1883);
+    client.setCallback(callback);
+    modeWifi = true;
   }
   else {
     modeAP();
   }
-  // client.setServer(broker_mqtt, 1883);
-  // client.setCallback(callback);
 }
 
 //{"broker":"teste", "id":"111#$#$%"}
 
 void loop() { 
-// mantemConexoes();
-// client.loop();
-//  savedData(); 
-//  serial.sendJson(broker, id);
-//  listAllFiles();
+  if(modeWifi){
+    mantemConexoes();
+    client.loop();
+  }
 }
 
 
 //=========================================================================
 // FUNÇÕES RELACIONADAS A SPIFFS
-
 // Inicializa SPIFFS
 void initSPIFFS() {
   if (!SPIFFS.begin(true)) {
@@ -159,7 +153,6 @@ void savedData() {
   Serial.println(ip);
   Serial.println(gateway);
 };
-//=========================================================================
 
 //=========================================================================
 // FUNÇÕES RELACIONADAS AO WIFI
@@ -172,14 +165,7 @@ bool initWiFi() {
   }
 
   WiFi.mode(WIFI_STA);
-  localIP.fromString(ip.c_str());
-  localGateway.fromString(gateway.c_str());
 
-
-  if (!WiFi.config(localIP, localGateway, subnet)) {
-    Serial.println("STA Failed to configure");
-    return false;
-  }
   WiFi.begin(ssid.c_str(), pass.c_str());
   Serial.println("Conectando ao WiFi...");
 
@@ -272,6 +258,7 @@ void modeAP() {
       }
     }
     request->send(200, "text/plain", "Done. ESP will restart, connect to your router and go to IP address: " + ip);
+    modeWifi = true;
     delay(3000);
     ESP.restart();
   });
@@ -283,24 +270,27 @@ void modeAP() {
 void conectaMQTT() { 
     while (!client.connected()) {
         Serial.print("Conectando ao Broker MQTT: ");
-        Serial.println(broker_mqtt);
+        Serial.println(broker);
         if (client.connect(id_mqtt)) {
             Serial.println("Conectado ao Broker com sucesso!");
             client.subscribe(topic_subscribe);
         } 
         else {
             Serial.println("Noo foi possivel se conectar ao broker.");
-            Serial.println("Nova tentatica de conexao em 10s");
-            delay(10000);
+            Serial.println("Nova tentatica de conexao em 5 s");
+            delay(5000);
         }
     }
 }
 
 // Funções MQTT
+// Recebe para receber os dados do broker
 void callback(char* topic, byte* payload, unsigned int length) 
 {
-
   String msg;
+  String valorJson;
+
+  // Debug da mensagem recebida no tópico inscrito
   Serial.print("Message arrived in topic: ");
   Serial.println(topic);
   Serial.print("Message:");
@@ -309,15 +299,20 @@ void callback(char* topic, byte* payload, unsigned int length)
     msg += c;
   }
 
+  // Cria um documento JSON
+  StaticJsonDocument<256> doc;
+  deserializeJson(doc, payload, length);
+
+  valorJson = doc["teste"].as<String>(); // Acessa o valor de uma chave qualquer e converte para String
+
   Serial.println();
   Serial.println(msg);
+  Serial.println(valorJson);
   Serial.println("-----------------------");
 }
-
 
 void mantemConexoes() {
     if (!client.connected()) {
        conectaMQTT(); 
     }
-  
 }
