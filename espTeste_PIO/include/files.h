@@ -6,16 +6,14 @@
 //Variáveis para salvar os valores do formulário HTML
 String ssid;
 String pass;
-String ip;
-String gateway;
+String setor;
 String broker;
 String id;
 
 // Diretório para salvar os valores de entrada
 const char* ssidPath = "/ssid.txt";
 const char* passPath = "/pass.txt";
-const char* ipPath = "/ip.txt";
-const char* gatewayPath = "/gateway.txt";
+const char* setorPath = "/setor.txt";
 const char* brokerPath = "/broker.txt";
 const char* idPath = "/id.txt";
 
